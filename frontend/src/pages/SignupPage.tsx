@@ -5,8 +5,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
 import { useAuth } from '../auth/AuthContext'
-import { Button } from '../components/ui/button'
-import { Input } from '../components/ui/input'
+import { Button } from '../components/button'
+import { Input } from '../components/input'
 
 const schema = z
   .object({
