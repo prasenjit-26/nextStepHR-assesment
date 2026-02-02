@@ -130,12 +130,31 @@ Notes:
 
 - `npx supabase secrets set SUPABASE_URL=... SUPABASE_ANON_KEY=...`
 
-## OpenAPI Documentation (deliverable note)
+## OpenAPI Documentation
 
-`Problem.md` asks for a backend API with generated OpenAPI documentation.
+The backend API includes **auto-generated OpenAPI documentation** using:
 
-This repo currently includes the working Todos API, but does not include an auto-generated OpenAPI spec endpoint.
-If you want, I can add OpenAPI generation (e.g., via Hono + zod-openapi / Scalar) so the deliverable is fully satisfied.
+- **Hono** + **@hono/zod-openapi** for schema-driven route definitions
+- **Scalar** for interactive API docs UI
+
+### Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /functions/v1/api/openapi.json` | OpenAPI 3.0 spec (JSON) |
+| `GET /functions/v1/api/docs` | Interactive Scalar docs UI |
+
+### Usage
+
+For hosted Supabase:
+
+- Spec: `https://<project-ref>.supabase.co/functions/v1/api/openapi.json`
+- Docs: `https://<project-ref>.supabase.co/functions/v1/api/docs`
+
+For local Supabase:
+
+- Spec: `http://localhost:54321/functions/v1/api/openapi.json`
+- Docs: `http://localhost:54321/functions/v1/api/docs`
 
 ## Cross-check vs Problem.md
 
@@ -149,4 +168,4 @@ If you want, I can add OpenAPI generation (e.g., via Hono + zod-openapi / Scalar
 - React Router ✅
 - React Query ✅
 - React Hook Form + Zod ✅
-- OpenAPI generated docs ⚠️ (not yet implemented; see note above)
+- OpenAPI generated docs ✅

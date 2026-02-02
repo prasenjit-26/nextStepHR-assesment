@@ -1,5 +1,12 @@
 {
   "compilerOptions": {
     "lib": ["dom", "deno.ns"]
+  },
+  "imports": {
+    "hono": "npm:hono@4.4.0",
+    "@hono/zod-openapi": "npm:@hono/zod-openapi@0.14.0",
+    "zod": "npm:zod@3.23.8",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.49.1",
+    "@scalar/hono-api-reference": "npm:@scalar/hono-api-reference@0.5.98"
   }
 }
