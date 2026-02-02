@@ -43,3 +43,6 @@ supabase/.branches/
 
 # Misc
 *.tsbuildinfo
+
+# Local Netlify folder
+.netlify
