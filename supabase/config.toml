@@ -1,0 +1,11 @@
+project_id = "gdfogprenglttjfcegla"
+
+[api]
+port = 54321
+
+[db]
+port = 54322
+
+[functions]
+[functions.api]
+verify_jwt = false
