@@ -9,6 +9,7 @@ create table if not exists public.todos (
   updated_at timestamptz not null default now()
 );
 
+drop trigger if exists set_todos_updated_at on public.todos;
 drop function if exists public.set_todos_updated_at();
 create or replace function public.set_todos_updated_at()
 returns trigger
@@ -19,8 +20,6 @@ begin
   return new;
 end;
 $$;
-
-drop trigger if exists set_todos_updated_at on public.todos;
 create trigger set_todos_updated_at
 before update on public.todos
 for each row

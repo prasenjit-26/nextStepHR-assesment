@@ -1,9 +1,30 @@
 import { supabase } from './supabase'
 
+export type Priority = 'low' | 'medium' | 'high'
+
+export type Tag = {
+  id: string
+  name: string
+}
+
+export type Subtask = {
+  id: string
+  todo_id: string
+  user_id: string
+  title: string
+  is_done: boolean
+  inserted_at: string
+  updated_at: string
+}
+
 export type Todo = {
   id: string
   title: string
   is_completed: boolean
+  due_at?: string | null
+  priority?: Priority
+  tags?: Tag[]
+  subtasks?: Subtask[]
   inserted_at: string
   updated_at: string
 }
@@ -55,20 +76,50 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
-export function listTodos() {
-  return apiFetch<Todo[]>('/functions/v1/api/todos', {
+export type TodoFilters = {
+  search?: string
+  status?: 'all' | 'pending' | 'completed'
+  priority?: Priority
+  tag?: string
+}
+
+export function listTodos(filters?: TodoFilters) {
+  const params = new URLSearchParams()
+  if (filters?.search) params.set('search', filters.search)
+  if (filters?.status && filters.status !== 'all') params.set('status', filters.status)
+  if (filters?.priority) params.set('priority', filters.priority)
+  if (filters?.tag) params.set('tag', filters.tag)
+
+  const queryString = params.toString()
+  const url = `/functions/v1/api/todos${queryString ? `?${queryString}` : ''}`
+
+  return apiFetch<Todo[]>(url, {
     method: 'GET',
   })
 }
 
-export function createTodo(input: { title: string }) {
+export function createTodo(input: {
+  title: string
+  due_at?: string | null
+  priority?: Priority
+  tags?: string[]
+}) {
   return apiFetch<Todo>('/functions/v1/api/todos', {
     method: 'POST',
     body: JSON.stringify(input),
   })
 }
 
-export function updateTodo(id: string, input: { title?: string; is_completed?: boolean }) {
+export function updateTodo(
+  id: string,
+  input: {
+    title?: string
+    is_completed?: boolean
+    due_at?: string | null
+    priority?: Priority
+    tags?: string[]
+  }
+) {
   return apiFetch<Todo>(`/functions/v1/api/todos/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(input),
@@ -78,5 +129,62 @@ export function updateTodo(id: string, input: { title?: string; is_completed?: b
 export function deleteTodo(id: string) {
   return apiFetch<{ success: true }>(`/functions/v1/api/todos/${id}`, {
     method: 'DELETE',
+  })
+}
+
+export function listSubtasks(todoId: string) {
+  return apiFetch<Subtask[]>(`/functions/v1/api/todos/${todoId}/subtasks`, {
+    method: 'GET',
+  })
+}
+
+export function createSubtask(todoId: string, input: { title: string }) {
+  return apiFetch<Subtask>(`/functions/v1/api/todos/${todoId}/subtasks`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateSubtask(id: string, input: { title?: string; is_done?: boolean }) {
+  return apiFetch<Subtask>(`/functions/v1/api/subtasks/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}
+
+export function deleteSubtask(id: string) {
+  return apiFetch<{ success: true }>(`/functions/v1/api/subtasks/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+export function aiParse(input: { text: string }) {
+  return apiFetch<{ title: string; due_at?: string | null; priority?: Priority; tags?: string[] }>(
+    `/functions/v1/api/ai/parse`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }
+  )
+}
+
+export function aiRewrite(input: { title: string }) {
+  return apiFetch<{ title: string }>(`/functions/v1/api/ai/rewrite`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export function aiSubtasks(input: { title: string }) {
+  return apiFetch<{ subtasks: string[] }>(`/functions/v1/api/ai/subtasks`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export function aiTag(input: { title: string }) {
+  return apiFetch<{ tags: string[] }>(`/functions/v1/api/ai/tag`, {
+    method: 'POST',
+    body: JSON.stringify(input),
   })
 }
