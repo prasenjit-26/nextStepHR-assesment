@@ -135,21 +135,18 @@ Notes:
 The backend API includes **auto-generated OpenAPI documentation** using:
 
 - **Hono** + **@hono/zod-openapi** for schema-driven route definitions
-- **Scalar** for interactive API docs UI
 
 ### Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
 | `GET /functions/v1/api/openapi.json` | OpenAPI 3.0 spec (JSON) |
-| `GET /functions/v1/api/docs` | Interactive Scalar docs UI |
 
 ### Usage
 
 For hosted Supabase:
 
 - Spec: `https://<project-ref>.supabase.co/functions/v1/api/openapi.json`
-- Docs: `https://<project-ref>.supabase.co/functions/v1/api/docs`
 
 For local Supabase:
 
