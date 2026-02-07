@@ -6,7 +6,7 @@ export function ProtectedRoute({ children }: PropsWithChildren) {
   const { user, isLoading } = useAuth()
 
   if (isLoading) return null
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/" replace />
 
   return children
 }

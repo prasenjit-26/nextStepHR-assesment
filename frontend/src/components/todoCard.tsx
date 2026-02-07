@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { useDraggable } from '@dnd-kit/core'
 import { type Todo, type Priority } from '../lib/api'
 
 function formatDue(dueAt?: string | null) {
@@ -53,16 +52,16 @@ export default function TodoCard({
   const [editPriority, setEditPriority] = useState<Priority>(todo.priority ?? 'medium')
   const [editDueAt, setEditDueAt] = useState(todo.due_at ?? '')
 
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: todo.id,
     data: { todo },
   })
 
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
     opacity: isDragging ? 0.5 : 1,
-  }
+    zIndex: isDragging ? 1000 : 'auto',
+  } as React.CSSProperties
 
   const due = formatDue(todo.due_at)
   const tags = todo.tags ?? []
@@ -85,7 +84,9 @@ export default function TodoCard({
     <div
       ref={setNodeRef}
       style={style}
-      className="group rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md"
+      className={`group rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-all duration-200 hover:shadow-md animate-fade-slide-in ${
+        isDragging ? 'opacity-50 scale-[0.98]' : ''
+      }`}
     >
       {isEditing ? (
         <div className="space-y-3">
@@ -170,13 +171,14 @@ export default function TodoCard({
           {subtasks.length ? (
             <div className="mt-3 space-y-1">
               {subtasks.map((s) => (
-                <label key={s.id} className="flex items-center gap-2 text-xs text-slate-700">
+                <label key={s.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer group/subtask">
                   <input
                     type="checkbox"
                     checked={s.is_done}
                     onChange={(e) => onToggleSubtask(s.id, e.target.checked)}
+                    className="checkbox-animated rounded border-slate-300 text-emerald-500 focus:ring-emerald-500"
                   />
-                  <span className={s.is_done ? 'line-through text-slate-400' : undefined}>{s.title}</span>
+                  <span className={`transition-all duration-200 ${s.is_done ? 'line-through text-slate-400' : 'group-hover/subtask:text-slate-900'}`}>{s.title}</span>
                 </label>
               ))}
             </div>
@@ -185,21 +187,21 @@ export default function TodoCard({
           <div className="mt-3 flex items-center justify-between">
             <span className="text-xs text-slate-400">{new Date(todo.inserted_at).toLocaleDateString()}</span>
             <div className="flex items-center gap-2">
-              <button onClick={onAiRewrite} disabled={isAiWorking} className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50" type="button">
-                AI Rewrite
+              <button onClick={onAiRewrite} disabled={isAiWorking} className="btn-animated text-xs px-2 py-1 rounded bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50" type="button">
+                {isAiWorking ? <span className="inline-block w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : 'AI Rewrite'}
               </button>
-              <button onClick={onAiSuggestTags} disabled={isAiWorking} className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50" type="button">
-                AI Tags
+              <button onClick={onAiSuggestTags} disabled={isAiWorking} className="btn-animated text-xs px-2 py-1 rounded bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50" type="button">
+                {isAiWorking ? <span className="inline-block w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : 'AI Tags'}
               </button>
-              <button onClick={onAiSuggestSubtasks} disabled={isAiWorking} className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50" type="button">
-                AI Subtasks
+              <button onClick={onAiSuggestSubtasks} disabled={isAiWorking} className="btn-animated text-xs px-2 py-1 rounded bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50" type="button">
+                {isAiWorking ? <span className="inline-block w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : 'AI Subtasks'}
               </button>
               <button
                 onClick={onToggle}
                 disabled={isToggling}
-                className={`text-xs px-2 py-1 rounded transition-colors ${
+                className={`btn-animated text-xs px-2 py-1 rounded transition-all duration-200 ${
                   todo.is_completed ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                }`}
+                } ${isToggling ? 'animate-pulse' : ''}`}
                 type="button"
               >
                 {todo.is_completed ? '← Pending' : 'Complete →'}

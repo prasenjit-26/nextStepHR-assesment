@@ -6,15 +6,13 @@ import { z } from 'zod'
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
-  KeyboardSensor,
+  rectIntersection,
   PointerSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 
 import { useAuth } from '../auth/AuthContext'
 import { Button } from '../components/button'
@@ -59,8 +57,7 @@ export function TodosPage() {
 
   // DnD sensors
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor)
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
 
   const todosQuery = useQuery({
@@ -99,7 +96,22 @@ export function TodosPage() {
       const isCompleted = overId === 'completed'
       const todo = todosQuery.data?.find((t) => t.id === todoId)
       if (todo && todo.is_completed !== isCompleted) {
-        updateMutation.mutate({ id: todoId, input: { is_completed: isCompleted } })
+        // Optimistic update - immediately move to new column
+        queryClient.setQueryData<Todo[]>(['todos', filters], (old) =>
+          old?.map((t) => (t.id === todoId ? { ...t, is_completed: isCompleted } : t))
+        )
+        // Then mutate (will revalidate on success/error)
+        updateMutation.mutate(
+          { id: todoId, input: { is_completed: isCompleted } },
+          {
+            onError: () => {
+              // Revert on error
+              queryClient.setQueryData<Todo[]>(['todos', filters], (old) =>
+                old?.map((t) => (t.id === todoId ? { ...t, is_completed: !isCompleted } : t))
+              )
+            },
+          }
+        )
       }
     }
   }
@@ -351,11 +363,22 @@ export function TodosPage() {
               variant="outline"
               onClick={onSmartAdd}
               disabled={aiParseMutation.isPending || createMutation.isPending}
+              className="btn-animated"
             >
-              Smart Add
+              {aiParseMutation.isPending ? (
+                <span className="flex items-center gap-2">
+                  <span className="inline-block w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                  Parsing...
+                </span>
+              ) : '✨ Smart Add'}
             </Button>
-            <Button type="submit" disabled={form.formState.isSubmitting || createMutation.isPending}>
-              Add Task
+            <Button type="submit" disabled={form.formState.isSubmitting || createMutation.isPending} className="btn-animated">
+              {createMutation.isPending ? (
+                <span className="flex items-center gap-2">
+                  <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Adding...
+                </span>
+              ) : '+ Add Task'}
             </Button>
           </form>
 
@@ -373,9 +396,9 @@ export function TodosPage() {
           </div>
 
           {form.formState.errors.title?.message ? (
-            <p className="mt-2 text-sm text-red-600">{form.formState.errors.title.message}</p>
+            <p className="mt-2 text-sm text-red-600 animate-shake">{form.formState.errors.title.message}</p>
           ) : null}
-          {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+          {error ? <p className="mt-2 text-sm text-red-600 animate-shake">{error}</p> : null}
         </section>
 
         {/* Filters */}
@@ -475,111 +498,116 @@ export function TodosPage() {
         ) : (
           <DndContext
             sensors={sensors}
-            collisionDetection={closestCorners}
+            collisionDetection={rectIntersection}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
             <div className="flex gap-6">
               <KanbanColumn title="Pending" count={pendingTodos.length} accentColor="bg-blue-500" id="pending">
-                <SortableContext items={pendingTodos.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                  {pendingTodos.length === 0 ? (
-                    <p className="text-center text-sm text-slate-400 py-8">No pending tasks</p>
-                  ) : (
-                    pendingTodos.map((todo) => (
-                      <TodoCard
-                        key={todo.id}
-                        todo={todo}
-                        onToggle={() => updateMutation.mutate({ id: todo.id, input: { is_completed: true } })}
-                        onDelete={() => deleteMutation.mutate(todo.id)}
-                        onEdit={(updates) => updateMutation.mutate({ id: todo.id, input: updates })}
-                        isToggling={updateMutation.isPending}
-                        isDeleting={deleteMutation.isPending}
-                        isAiWorking={
-                          aiRewriteMutation.isPending ||
-                          aiTagsMutation.isPending ||
-                          aiSubtasksMutation.isPending
+                {pendingTodos.length === 0 ? (
+                  <p className="text-center text-sm text-slate-400 py-8">No pending tasks</p>
+                ) : (
+                  pendingTodos.map((todo) => (
+                    <TodoCard
+                      key={todo.id}
+                      todo={todo}
+                      onToggle={() => updateMutation.mutate({ id: todo.id, input: { is_completed: true } })}
+                      onDelete={() => deleteMutation.mutate(todo.id)}
+                      onEdit={(updates) => updateMutation.mutate({ id: todo.id, input: updates })}
+                      isToggling={updateMutation.isPending}
+                      isDeleting={deleteMutation.isPending}
+                      isAiWorking={
+                        aiRewriteMutation.isPending ||
+                        aiTagsMutation.isPending ||
+                        aiSubtasksMutation.isPending
+                      }
+                      onAiRewrite={async () => {
+                        setError(null)
+                        const out = await aiRewriteMutation.mutateAsync({ title: todo.title })
+                        await updateMutation.mutateAsync({ id: todo.id, input: { title: out.title } })
+                      }}
+                      onAiSuggestTags={async () => {
+                        setError(null)
+                        const out = await aiTagsMutation.mutateAsync({ title: todo.title })
+                        await updateMutation.mutateAsync({ id: todo.id, input: { tags: out.tags } })
+                      }}
+                      onAiSuggestSubtasks={async () => {
+                        setError(null)
+                        const out = await aiSubtasksMutation.mutateAsync({ title: todo.title })
+                        for (const st of out.subtasks) {
+                          await createSubtaskMutation.mutateAsync({ todoId: todo.id, title: st })
                         }
-                        onAiRewrite={async () => {
-                          setError(null)
-                          const out = await aiRewriteMutation.mutateAsync({ title: todo.title })
-                          await updateMutation.mutateAsync({ id: todo.id, input: { title: out.title } })
-                        }}
-                        onAiSuggestTags={async () => {
-                          setError(null)
-                          const out = await aiTagsMutation.mutateAsync({ title: todo.title })
-                          await updateMutation.mutateAsync({ id: todo.id, input: { tags: out.tags } })
-                        }}
-                        onAiSuggestSubtasks={async () => {
-                          setError(null)
-                          const out = await aiSubtasksMutation.mutateAsync({ title: todo.title })
-                          for (const st of out.subtasks) {
-                            await createSubtaskMutation.mutateAsync({ todoId: todo.id, title: st })
-                          }
-                        }}
-                        onCreateSubtask={(title) =>
-                          createSubtaskMutation.mutate({ todoId: todo.id, title })
-                        }
-                        onToggleSubtask={(id, is_done) =>
-                          updateSubtaskMutation.mutate({ id, is_done })
-                        }
-                      />
-                    ))
-                  )}
-                </SortableContext>
+                      }}
+                      onCreateSubtask={(title) =>
+                        createSubtaskMutation.mutate({ todoId: todo.id, title })
+                      }
+                      onToggleSubtask={(id, is_done) =>
+                        updateSubtaskMutation.mutate({ id, is_done })
+                      }
+                    />
+                  ))
+                )}
               </KanbanColumn>
 
               <KanbanColumn title="Completed" count={completedTodos.length} accentColor="bg-emerald-500" id="completed">
-                <SortableContext items={completedTodos.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                  {completedTodos.length === 0 ? (
-                    <p className="text-center text-sm text-slate-400 py-8">No completed tasks</p>
-                  ) : (
-                    completedTodos.map((todo) => (
-                      <TodoCard
-                        key={todo.id}
-                        todo={todo}
-                        onToggle={() => updateMutation.mutate({ id: todo.id, input: { is_completed: false } })}
-                        onDelete={() => deleteMutation.mutate(todo.id)}
-                        onEdit={(updates) => updateMutation.mutate({ id: todo.id, input: updates })}
-                        isToggling={updateMutation.isPending}
-                        isDeleting={deleteMutation.isPending}
-                        isAiWorking={
-                          aiRewriteMutation.isPending ||
-                          aiTagsMutation.isPending ||
-                          aiSubtasksMutation.isPending
+                {completedTodos.length === 0 ? (
+                  <p className="text-center text-sm text-slate-400 py-8">No completed tasks</p>
+                ) : (
+                  completedTodos.map((todo) => (
+                    <TodoCard
+                      key={todo.id}
+                      todo={todo}
+                      onToggle={() => updateMutation.mutate({ id: todo.id, input: { is_completed: false } })}
+                      onDelete={() => deleteMutation.mutate(todo.id)}
+                      onEdit={(updates) => updateMutation.mutate({ id: todo.id, input: updates })}
+                      isToggling={updateMutation.isPending}
+                      isDeleting={deleteMutation.isPending}
+                      isAiWorking={
+                        aiRewriteMutation.isPending ||
+                        aiTagsMutation.isPending ||
+                        aiSubtasksMutation.isPending
+                      }
+                      onAiRewrite={async () => {
+                        setError(null)
+                        const out = await aiRewriteMutation.mutateAsync({ title: todo.title })
+                        await updateMutation.mutateAsync({ id: todo.id, input: { title: out.title } })
+                      }}
+                      onAiSuggestTags={async () => {
+                        setError(null)
+                        const out = await aiTagsMutation.mutateAsync({ title: todo.title })
+                        await updateMutation.mutateAsync({ id: todo.id, input: { tags: out.tags } })
+                      }}
+                      onAiSuggestSubtasks={async () => {
+                        setError(null)
+                        const out = await aiSubtasksMutation.mutateAsync({ title: todo.title })
+                        for (const st of out.subtasks) {
+                          await createSubtaskMutation.mutateAsync({ todoId: todo.id, title: st })
                         }
-                        onAiRewrite={async () => {
-                          setError(null)
-                          const out = await aiRewriteMutation.mutateAsync({ title: todo.title })
-                          await updateMutation.mutateAsync({ id: todo.id, input: { title: out.title } })
-                        }}
-                        onAiSuggestTags={async () => {
-                          setError(null)
-                          const out = await aiTagsMutation.mutateAsync({ title: todo.title })
-                          await updateMutation.mutateAsync({ id: todo.id, input: { tags: out.tags } })
-                        }}
-                        onAiSuggestSubtasks={async () => {
-                          setError(null)
-                          const out = await aiSubtasksMutation.mutateAsync({ title: todo.title })
-                          for (const st of out.subtasks) {
-                            await createSubtaskMutation.mutateAsync({ todoId: todo.id, title: st })
-                          }
-                        }}
-                        onCreateSubtask={(title) =>
-                          createSubtaskMutation.mutate({ todoId: todo.id, title })
-                        }
-                        onToggleSubtask={(id, is_done) =>
-                          updateSubtaskMutation.mutate({ id, is_done })
-                        }
-                      />
-                    ))
-                  )}
-                </SortableContext>
+                      }}
+                      onCreateSubtask={(title) =>
+                        createSubtaskMutation.mutate({ todoId: todo.id, title })
+                      }
+                      onToggleSubtask={(id, is_done) =>
+                        updateSubtaskMutation.mutate({ id, is_done })
+                      }
+                    />
+                  ))
+                )}
               </KanbanColumn>
             </div>
-            <DragOverlay>
+            <DragOverlay dropAnimation={{ duration: 200, easing: 'ease-out' }}>
               {activeTodo ? (
-                <div className="rounded-lg border border-slate-300 bg-white p-3 shadow-lg opacity-90">
+                <div className="drag-overlay rounded-lg border border-blue-300 bg-white p-3">
                   <p className="text-sm font-medium text-slate-800">{activeTodo.title}</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${
+                      activeTodo.priority === 'high' ? 'bg-red-100 text-red-700' :
+                      activeTodo.priority === 'low' ? 'bg-slate-100 text-slate-700' :
+                      'bg-amber-100 text-amber-700'
+                    }`}>
+                      {activeTodo.priority ?? 'medium'}
+                    </span>
+                  </div>
                 </div>
               ) : null}
             </DragOverlay>
